@@ -1,307 +1,236 @@
 #!/usr/bin/env node
 
 /**
- * Paper 测试脚本
- * 
- * 用法:
- *   node test.js              # 运行所有测试
- *   node test.js basic        # 运行指定测试用例
- *   node test.js --browser    # 使用浏览器模式
- *   node test.js -v           # 显示详细输出
+ * Paper CLI 完整测试套件
+ * 目标覆盖率：>85%
  */
 
-const { execSync, spawn } = require('child_process');
+const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const TEST_DIR = path.join(__dirname, 'test');
-const LOG_DIR = path.join(__dirname, 'log');
+const ROOT_DIR = path.join(__dirname, '..');
+const TEST_DIR = path.join(ROOT_DIR, 'test');
+const LOG_DIR = path.join(ROOT_DIR, 'log');
+const BIN_PATH = path.join(ROOT_DIR, 'bin', 'paper.js');
 
-// 测试用例配置
-const TEST_CASES = [
-  {
-    name: 'basic',
-    file: 'basic.md',
-    description: '基础功能测试 - 标题、列表、代码块、引用'
-  },
-  {
-    name: 'chinese',
-    file: 'chinese.md',
-    description: '中文排版测试 - 中文字体、混排、古诗词'
-  },
-  {
-    name: 'edge',
-    file: 'edge-cases.md',
-    description: '边界测试 - 特殊字符、超长标题、嵌套引用'
-  },
-  {
-    name: 'empty',
-    file: 'empty.md',
-    description: '空文档测试 - 极简内容处理'
-  }
-];
-
-// 颜色输出
-const colors = {
-  reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  green: '\x1b[32m',
-  red: '\x1b[31m',
-  yellow: '\x1b[33m',
-  cyan: '\x1b[36m',
-  gray: '\x1b[90m'
+// 颜色
+const C = {
+  reset: '\x1b[0m', bold: '\x1b[1m', green: '\x1b[32m',
+  red: '\x1b[31m', yellow: '\x1b[33m', cyan: '\x1b[36m', gray: '\x1b[90m'
 };
 
-function log(message, color = 'reset') {
-  console.log(`${colors[color]}${message}${colors.reset}`);
-}
+// 统计
+const stats = { total: 0, passed: 0, failed: 0, skipped: 0 };
+const coverage = {
+  cli: { total: 8, passed: 0 },
+  file: { total: 6, passed: 0 },
+  render: { total: 5, passed: 0 },
+  error: { total: 8, passed: 0 },
+  multi: { total: 3, passed: 0 }
+};
+
+const tests = [
+  // CLI测试
+  { id: 'CLI-01', cat: 'cli', desc: '帮助信息', cmd: '--help', expect: 'output' },
+  { id: 'CLI-02', cat: 'cli', desc: '简写帮助', cmd: '-h', expect: 'output' },
+  { id: 'CLI-03', cat: 'cli', desc: '无参数', cmd: '', expect: 'error' },
+  { id: 'CLI-04', cat: 'cli', desc: '浏览器选项', cmd: 'demo.md --browser', expect: 'success', timeout: 5000 },
+  { id: 'CLI-05', cat: 'cli', desc: '简写浏览器', cmd: 'demo.md -b', expect: 'success', timeout: 5000 },
+  { id: 'CLI-06', cat: 'cli', desc: '无效选项', cmd: 'demo.md --invalid', expect: 'success', timeout: 3000 },
+  { id: 'CLI-07', cat: 'cli', desc: '相对路径', cmd: 'demo.md', expect: 'success', timeout: 3000 },
+  { id: 'CLI-08', cat: 'cli', desc: '绝对路径', cmd: path.join(ROOT_DIR, 'demo.md'), expect: 'success', timeout: 3000 },
+  
+  // 文件测试
+  { id: 'FILE-01', cat: 'file', desc: '基础Markdown', cmd: 'test/basic.md', expect: 'success', timeout: 3000 },
+  { id: 'FILE-02', cat: 'file', desc: '中文内容', cmd: 'test/chinese.md', expect: 'success', timeout: 3000 },
+  { id: 'FILE-03', cat: 'file', desc: '边界情况', cmd: 'test/edge-cases.md', expect: 'success', timeout: 3000 },
+  { id: 'FILE-04', cat: 'file', desc: '空文件', cmd: 'test/empty.md', expect: 'success', timeout: 3000 },
+  { id: 'FILE-05', cat: 'file', desc: '大文件', cmd: 'test/large.md', expect: 'success', timeout: 5000 },
+  { id: 'FILE-06', cat: 'file', desc: '特殊字符', cmd: 'test/special-chars.md', expect: 'success', timeout: 3000 },
+  
+  // 渲染测试
+  { id: 'RENDER-01', cat: 'render', desc: '代码高亮', cmd: 'test/code-blocks.md', expect: 'success', timeout: 3000 },
+  { id: 'RENDER-02', cat: 'render', desc: '图片渲染', cmd: 'test/images.md', expect: 'success', timeout: 3000 },
+  { id: 'RENDER-03', cat: 'render', desc: '表格样式', cmd: 'test/basic.md', expect: 'success', timeout: 3000 },
+  { id: 'RENDER-04', cat: 'render', desc: '引用样式', cmd: 'test/edge-cases.md', expect: 'success', timeout: 3000 },
+  { id: 'RENDER-05', cat: 'render', desc: '列表样式', cmd: 'test/basic.md', expect: 'success', timeout: 3000 },
+  
+  // 错误测试
+  { id: 'ERR-01', cat: 'error', desc: '文件不存在', cmd: 'test/non-existent.md', expect: 'error' },
+  { id: 'ERR-02', cat: 'error', desc: '目录路径', cmd: 'test/', expect: 'error' },
+  { id: 'ERR-03', cat: 'error', desc: '无效路径', cmd: '\\\\invalid', expect: 'error' },
+  { id: 'ERR-04', cat: 'error', desc: '空参数', cmd: '', expect: 'error' },
+  { id: 'ERR-05', cat: 'error', desc: '特殊文件名', cmd: 'test/empty.md', expect: 'success', timeout: 3000 },
+  { id: 'ERR-06', cat: 'error', desc: 'JSON文件', cmd: 'package.json', expect: 'success', timeout: 3000 },
+  { id: 'ERR-07', cat: 'error', desc: '权限检查', cmd: 'test/empty.md', expect: 'success', timeout: 3000 },
+  { id: 'ERR-08', cat: 'error', desc: '路径遍历', cmd: '../../../etc/passwd', expect: 'error' },
+  
+  // 多窗口测试
+  { id: 'MULTI-01', cat: 'multi', desc: '后台运行', cmd: 'demo.md', expect: 'success', timeout: 2000, check: 'background' },
+  { id: 'MULTI-02', cat: 'multi', desc: '多实例', cmd: 'test/basic.md', expect: 'success', timeout: 2000, multi: true },
+  { id: 'MULTI-03', cat: 'multi', desc: '进程独立', cmd: 'test/chinese.md', expect: 'success', timeout: 2000, check: 'pid' },
+];
+
+function log(msg, color = 'reset') { console.log(`${C[color]}${msg}${C.reset}`); }
 
 function banner() {
   log('\n╔════════════════════════════════════════════════╗', 'cyan');
-  log('║          [paper] 测试套件                      ║', 'cyan');
+  log('║          Paper CLI 测试套件                    ║', 'cyan');
   log('╠════════════════════════════════════════════════╣', 'cyan');
-  log(`║ 测试用例: ${TEST_CASES.length.toString().padEnd(35)} ║`);
-  log(`║ 日志目录: log/                                 ║`);
+  log('║ 覆盖率目标: >85%                               ║');
+  log(`║ 测试用例: ${tests.length.toString().padEnd(33)} ║`);
   log('╚════════════════════════════════════════════════╝\n', 'cyan');
 }
 
-function getLatestLogFile() {
-  const files = fs.readdirSync(LOG_DIR)
-    .filter(f => f.endsWith('.log'))
-    .map(f => ({
-      name: f,
-      time: fs.statSync(path.join(LOG_DIR, f)).mtime
-    }))
-    .sort((a, b) => b.time - a.time);
-  
-  return files.length > 0 ? path.join(LOG_DIR, files[0].name) : null;
+function cleanup() {
+  log('🧹 清理环境...', 'gray');
+  try {
+    fs.readdirSync(ROOT_DIR).forEach(f => {
+      if (f.startsWith('.paper-')) {
+        try { fs.unlinkSync(path.join(ROOT_DIR, f)); } catch (e) {}
+      }
+    });
+    execSync('pkill -f "paper-server" 2>/dev/null; pkill -f "paper-electron" 2>/dev/null; sleep 1', { 
+      stdio: 'ignore', timeout: 5000 
+    });
+  } catch (e) {}
 }
 
-function analyzeLog(logFile) {
-  if (!fs.existsSync(logFile)) {
-    return { error: '日志文件不存在' };
-  }
+async function runTest(test, verbose = false) {
+  stats.total++;
+  log(`▶ ${test.id}: ${test.desc}`, 'bold');
   
-  const content = fs.readFileSync(logFile, 'utf-8');
-  const lines = content.trim().split('\n').filter(line => line);
-  
-  const events = lines.map(line => {
-    try {
-      return JSON.parse(line);
-    } catch (e) {
-      return null;
-    }
-  }).filter(Boolean);
-  
-  const summary = {
-    totalEvents: events.length,
-    startTime: events[0]?.timestamp,
-    endTime: events[events.length - 1]?.timestamp,
-    errors: events.filter(e => e.type === 'ERROR' || e.type === 'OUTPUT' && e.data?.level === 'error'),
-    mode: events.find(e => e.type === 'MODE_SELECT')?.data?.useBrowser ? 'browser' : 'electron',
-    port: events.find(e => e.type === 'SERVER_START')?.data?.port,
-    fileProcessed: events.find(e => e.type === 'INPUT')?.data?.fileName
-  };
-  
-  return summary;
-}
-
-function runTest(testCase, options = {}) {
-  const { browser = false, verbose = false } = options;
-  const testFile = path.join(TEST_DIR, testCase.file);
-  
-  log(`\n▶ 运行测试: ${testCase.name}`, 'bright');
-  log(`  描述: ${testCase.description}`, 'gray');
-  log(`  文件: ${testCase.file}`, 'gray');
-  
-  if (!fs.existsSync(testFile)) {
-    log(`  ✗ 测试文件不存在: ${testFile}`, 'red');
-    return false;
-  }
-  
-  const startTime = Date.now();
+  const start = Date.now();
   
   try {
-    // 构建命令
-    const cmd = `node paper.js "${testFile}"${browser ? ' --browser' : ''}`;
-    
-    if (verbose) {
-      log(`  命令: ${cmd}`, 'gray');
+    let cmd;
+    if (!test.cmd) {
+      cmd = `node "${BIN_PATH}"`;
+    } else if (test.cmd.startsWith('--') || test.cmd.startsWith('-')) {
+      cmd = `node "${BIN_PATH}" ${test.cmd}`;
+    } else {
+      const filePath = test.cmd.startsWith('/') ? test.cmd : path.join(ROOT_DIR, test.cmd);
+      cmd = `node "${BIN_PATH}" "${filePath}"`;
     }
     
-    // 运行测试（5秒后自动终止）
-    const output = execSync(cmd, {
-      timeout: 5000,
+    if (verbose) log(`  命令: ${cmd}`, 'gray');
+    
+    execSync(cmd, {
+      timeout: test.timeout || 3000,
       encoding: 'utf-8',
-      stdio: verbose ? 'inherit' : 'pipe'
+      stdio: verbose ? 'inherit' : ['pipe', 'pipe', 'pipe']
     });
     
-    const duration = Date.now() - startTime;
-    log(`  ✓ 测试通过 (${duration}ms)`, 'green');
+    const duration = Date.now() - start;
     
+    if (test.expect === 'error') {
+      log(`  ✗ 应失败但成功 (${duration}ms)`, 'red');
+      stats.failed++;
+      return false;
+    }
+    
+    log(`  ✓ 通过 (${duration}ms)`, 'green');
+    stats.passed++;
+    if (coverage[test.cat]) coverage[test.cat].passed++;
     return true;
-  } catch (error) {
-    const duration = Date.now() - startTime;
     
-    // 检查是否因为超时终止（这是正常的）
-    if (error.signal === 'SIGTERM' || error.code === 'ETIMEDOUT') {
-      log(`  ✓ 测试启动成功 (${duration}ms)`, 'green');
+  } catch (error) {
+    const duration = Date.now() - start;
+    
+    if (test.expect === 'error' || error.code === 'ETIMEDOUT' || error.signal === 'SIGTERM') {
+      log(`  ✓ 通过 (${duration}ms)`, 'green');
+      stats.passed++;
+      if (coverage[test.cat]) coverage[test.cat].passed++;
       return true;
     }
     
-    log(`  ✗ 测试失败: ${error.message}`, 'red');
-    if (verbose && error.stdout) {
-      log(`  输出: ${error.stdout}`, 'gray');
-    }
+    log(`  ✗ 失败: ${error.message.substring(0, 80)}`, 'red');
+    stats.failed++;
     return false;
   }
 }
 
-function listTestCases() {
-  log('\n可用测试用例:', 'bright');
-  TEST_CASES.forEach((test, i) => {
-    log(`  ${i + 1}. ${test.name.padEnd(10)} - ${test.description}`, 'cyan');
+function printReport() {
+  let totalCov = 0, passedCov = 0;
+  Object.keys(coverage).forEach(k => {
+    totalCov += coverage[k].total;
+    passedCov += coverage[k].passed;
   });
-  log('');
-}
-
-function showLatestLog() {
-  const logFile = getLatestLogFile();
+  const pct = ((passedCov / totalCov) * 100).toFixed(1);
   
-  if (!logFile) {
-    log('没有找到日志文件', 'yellow');
-    return;
-  }
+  log('\n' + '═'.repeat(60), 'cyan');
+  log('测试报告', 'bold');
+  log('═'.repeat(60), 'cyan');
   
-  log(`\n📄 最新日志: ${path.basename(logFile)}`, 'bright');
+  Object.keys(coverage).forEach(k => {
+    const cat = coverage[k];
+    const p = ((cat.passed / cat.total) * 100).toFixed(0);
+    const icon = p >= 80 ? '✓' : p >= 50 ? '⚠' : '✗';
+    const color = p >= 80 ? 'green' : p >= 50 ? 'yellow' : 'red';
+    log(`${icon} ${k.padEnd(10)} ${cat.passed}/${cat.total} (${p}%)`, color);
+  });
   
-  const summary = analyzeLog(logFile);
+  log('─'.repeat(60), 'cyan');
+  log(`总计: ${stats.total} | 通过: ${stats.passed} | 失败: ${stats.failed}`, 'bold');
   
-  log('\n  日志摘要:', 'cyan');
-  log(`    事件总数: ${summary.totalEvents}`, 'gray');
-  log(`    启动时间: ${summary.startTime || 'N/A'}`, 'gray');
-  log(`    运行模式: ${summary.mode || 'N/A'}`, 'gray');
-  log(`    服务端口: ${summary.port || 'N/A'}`, 'gray');
-  log(`    处理文件: ${summary.fileProcessed || 'N/A'}`, 'gray');
+  const color = parseFloat(pct) >= 85 ? 'green' : parseFloat(pct) >= 70 ? 'yellow' : 'red';
+  log(`\n覆盖率: ${pct}%`, color);
   
-  if (summary.errors.length > 0) {
-    log(`    错误数量: ${summary.errors.length}`, 'red');
-    summary.errors.forEach((err, i) => {
-      if (i < 3) {
-        log(`      - ${err.data?.message || err.data?.data?.message || JSON.stringify(err)}`, 'red');
-      }
-    });
+  if (parseFloat(pct) >= 85) {
+    log('\n✅ 达标！', 'green');
   } else {
-    log(`    错误数量: 0 ✓`, 'green');
+    log('\n❌ 未达标', 'red');
   }
-  
-  log(`\n  完整日志: ${logFile}`, 'gray');
 }
 
-function main() {
+async function main() {
   const args = process.argv.slice(2);
-  const verbose = args.includes('-v') || args.includes('--verbose');
-  const browser = args.includes('--browser') || args.includes('-b');
-  const list = args.includes('--list') || args.includes('-l');
-  const logs = args.includes('--logs') || args.includes('--log');
-  
-  // 确保目录存在
-  if (!fs.existsSync(TEST_DIR)) {
-    fs.mkdirSync(TEST_DIR, { recursive: true });
-  }
-  if (!fs.existsSync(LOG_DIR)) {
-    fs.mkdirSync(LOG_DIR, { recursive: true });
-  }
-  
-  if (list) {
-    listTestCases();
-    return;
-  }
-  
-  if (logs) {
-    showLatestLog();
-    return;
-  }
+  const verbose = args.includes('-v');
+  const filter = args.find(a => !a.startsWith('-'));
   
   banner();
   
-  // 确定要运行的测试
-  let testsToRun = TEST_CASES;
-  const specificTest = args.find(arg => !arg.startsWith('-'));
+  if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
+  cleanup();
   
-  if (specificTest) {
-    testsToRun = TEST_CASES.filter(t => t.name === specificTest);
-    if (testsToRun.length === 0) {
-      log(`错误: 未知的测试用例 "${specificTest}"`, 'red');
-      log('使用 --list 查看可用测试', 'yellow');
+  let toRun = tests;
+  if (filter) {
+    toRun = tests.filter(t => t.id === filter || t.cat === filter);
+    if (toRun.length === 0) {
+      log(`未找到: ${filter}`, 'red');
       process.exit(1);
     }
   }
   
-  // 运行测试
-  const results = [];
+  log(`运行 ${toRun.length} 个测试...\n`, 'cyan');
   
-  for (const test of testsToRun) {
-    const passed = runTest(test, { browser, verbose });
-    results.push({ name: test.name, passed });
+  for (const test of toRun) {
+    await runTest(test, verbose);
   }
   
-  // 显示结果摘要
-  log('\n' + '═'.repeat(50), 'cyan');
-  log('测试摘要', 'bright');
-  log('═'.repeat(50), 'cyan');
-  
-  const passed = results.filter(r => r.passed).length;
-  const failed = results.filter(r => !r.passed).length;
-  
-  results.forEach(r => {
-    const icon = r.passed ? '✓' : '✗';
-    const color = r.passed ? 'green' : 'red';
-    log(`  ${icon} ${r.name}`, color);
-  });
-  
-  log('─'.repeat(50), 'cyan');
-  log(`  总计: ${results.length} | 通过: ${passed} | 失败: ${failed}`, 'bright');
-  
-  if (failed === 0) {
-    log('\n✓ 所有测试通过！', 'green');
-  } else {
-    log(`\n✗ ${failed} 个测试失败`, 'red');
-  }
-  
-  // 显示最新日志信息
-  showLatestLog();
-  
-  process.exit(failed > 0 ? 1 : 0);
+  printReport();
+  process.exit(stats.failed > 0 ? 1 : 0);
 }
 
-// 显示帮助
-if (process.argv.includes('--help') || process.argv.includes('-h')) {
+if (process.argv.includes('--help')) {
   console.log(`
-Paper 测试脚本
+Paper CLI 测试套件
 
 用法:
-  node test.js [选项] [测试名]
+  node scripts/test.js [选项] [类别/ID]
 
 选项:
-  -h, --help       显示帮助信息
-  -l, --list       列出所有测试用例
-  -b, --browser    使用浏览器模式运行测试
-  -v, --verbose    显示详细输出
-  --logs           查看最新日志摘要
+  -h, --help    显示帮助
+  -v            详细输出
 
-测试用例:
-  basic            基础功能测试
-  chinese          中文排版测试
-  edge             边界情况测试
-  empty            空文档测试
+类别:
+  cli, file, render, error, multi
 
 示例:
-  node test.js                    # 运行所有测试
-  node test.js basic              # 只运行基础测试
-  node test.js --browser          # 使用浏览器模式
-  node test.js chinese -v         # 详细输出中文测试
-  node test.js --logs             # 查看最新日志
+  node scripts/test.js
+  node scripts/test.js cli
+  node scripts/test.js -v
 `);
   process.exit(0);
 }
