@@ -20,6 +20,10 @@ struct Cli {
     #[arg(value_name = "FILE")]
     file: Option<PathBuf>,
 
+    /// 显示日志输出
+    #[arg(short, long)]
+    log: bool,
+
     /// 内部使用：启动窗口模式
     #[arg(long, hide = true)]
     window: bool,
@@ -27,31 +31,27 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
+    let verbose = cli.log;
 
     // 如果没有提供文件，显示帮助
     let file_path = match cli.file {
         Some(path) => path,
         None => {
-            eprintln!("{}[paper] 错误: 请提供 Markdown 文件路径{}", "\x1b[31m", "\x1b[0m");
-            eprintln!("{}[paper] 用法: paper <file.md>{}", "\x1b[36m", "\x1b[0m");
+            eprintln!("[paper] 错误: 请提供 Markdown 文件路径");
+            eprintln!("[paper] 用法: paper <file.md>");
             std::process::exit(1);
         }
     };
 
     // 检查文件是否存在
     if !file_path.exists() {
-        eprintln!(
-            "{}[paper] 错误: 文件不存在: {:?}{}",
-            "\x1b[31m",
-            file_path,
-            "\x1b[0m"
-        );
+        eprintln!("[paper] 错误: 文件不存在: {:?}", file_path);
         std::process::exit(1);
     }
 
     // 如果是窗口模式，启动 WebView
     if cli.window {
-        window_mode(&file_path);
+        window_mode(&file_path, verbose);
         return;
     }
 
@@ -61,15 +61,19 @@ fn main() {
     // 获取当前可执行文件路径
     let current_exe = std::env::current_exe().expect("获取可执行文件路径失败");
     
-    // 启动后台进程
-    let mut child = Command::new(current_exe)
-        .arg("--window")
-        .arg(file_str)
+    // 构建命令
+    let mut cmd = Command::new(current_exe);
+    cmd.arg("--window");
+    if verbose {
+        cmd.arg("--log");
+    }
+    cmd.arg(file_str)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("启动后台进程失败");
+        .stderr(Stdio::null());
+    
+    // 启动后台进程
+    let mut child = cmd.spawn().expect("启动后台进程失败");
 
     // 等待一小段时间确保进程启动成功
     std::thread::sleep(std::time::Duration::from_millis(200));
@@ -77,21 +81,23 @@ fn main() {
     // 检查进程是否还在运行
     match child.try_wait() {
         Ok(Some(status)) => {
-            eprintln!("{}[paper] 窗口启动失败，退出码: {:?}{}", "\x1b[31m", status, "\x1b[0m");
+            eprintln!("[paper] 窗口启动失败，退出码: {:?}", status);
             std::process::exit(1);
         }
         _ => {
             // 进程正常运行
-            let file_name = file_path.file_name().unwrap().to_str().unwrap();
-            println!("{}[paper] 数字宣纸{}", "\x1b[36m", "\x1b[0m");
-            println!("{}[paper] 正在打开: {}{}", "\x1b[36m", file_name, "\x1b[0m");
-            println!("{}[paper] PID: {}{}", "\x1b[36m", child.id(), "\x1b[0m");
-            println!("{}[paper] 终端已释放，可继续打开其他文件{}", "\x1b[32m", "\x1b[0m");
+            if verbose {
+                let file_name = file_path.file_name().unwrap().to_str().unwrap();
+                println!("{}[paper] 数字宣纸{}", "\x1b[36m", "\x1b[0m");
+                println!("{}[paper] 正在打开: {}{}", "\x1b[36m", file_name, "\x1b[0m");
+                println!("{}[paper] PID: {}{}", "\x1b[36m", child.id(), "\x1b[0m");
+                println!("{}[paper] 终端已释放，可继续打开其他文件{}", "\x1b[32m", "\x1b[0m");
+            }
         }
     }
 }
 
-fn window_mode(file_path: &PathBuf) {
+fn window_mode(file_path: &PathBuf, verbose: bool) {
     use tao::{
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
@@ -103,7 +109,9 @@ fn window_mode(file_path: &PathBuf) {
     let html = match render_markdown(file_path) {
         Ok(h) => h,
         Err(e) => {
-            eprintln!("渲染失败: {}", e);
+            if verbose {
+                eprintln!("渲染失败: {}", e);
+            }
             std::process::exit(1);
         }
     };
@@ -114,13 +122,20 @@ fn window_mode(file_path: &PathBuf) {
     let port = match start_server(content.clone()) {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("启动服务器失败: {}", e);
+            if verbose {
+                eprintln!("启动服务器失败: {}", e);
+            }
             std::process::exit(1);
         }
     };
 
     let url = format!("http://localhost:{}", port);
     let file_name = file_path.file_name().unwrap().to_str().unwrap();
+
+    if verbose {
+        println!("{}[paper] 数字宣纸{}", "\x1b[36m", "\x1b[0m");
+        println!("{}[paper] 服务器地址: {}{}", "\x1b[36m", url, "\x1b[0m");
+    }
 
     // 创建窗口和 WebView
     let event_loop = EventLoop::new();
