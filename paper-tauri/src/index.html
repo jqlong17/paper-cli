@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paper - 数字宣纸</title>
+    <script src="https://unpkg.com/@tauri-apps/api@1.5.0/dist/tauri.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        
+        html::-webkit-scrollbar {
+            display: none;
+        }
+        
+        body {
+            font-family: "Noto Serif SC", "Source Han Serif SC", "Georgia", serif;
+            background-color: #F9F8F2;
+            color: #333333;
+            line-height: 1.8;
+            letter-spacing: 0.03em;
+        }
+        
+        #drop-zone {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            background: rgba(249, 248, 242, 0.95);
+            transition: opacity 0.3s ease;
+        }
+        
+        #drop-zone.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .drop-message {
+            font-size: 1.5em;
+            color: #666;
+            margin-top: 20px;
+        }
+        
+        .drop-icon {
+            font-size: 4em;
+            opacity: 0.5;
+        }
+        
+        #content {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 120px 40px;
+            opacity: 0;
+            animation: inkSpread 0.6s ease-out forwards;
+        }
+        
+        @keyframes inkSpread {
+            0% {
+                opacity: 0;
+                filter: blur(2px);
+            }
+            50% {
+                opacity: 0.5;
+                filter: blur(1px);
+            }
+            100% {
+                opacity: 1;
+                filter: blur(0);
+            }
+        }
+        
+        h1, h2, h3, h4, h5, h6 {
+            font-weight: 600;
+            margin: 1.8em 0 0.8em 0;
+            line-height: 1.4;
+            color: #2a2a2a;
+        }
+        
+        h1 {
+            font-size: 2.2em;
+            margin-top: 0;
+            padding-bottom: 0.3em;
+        }
+        
+        h2 {
+            font-size: 1.8em;
+        }
+        
+        h3 {
+            font-size: 1.5em;
+        }
+        
+        h4 {
+            font-size: 1.3em;
+        }
+        
+        p {
+            margin: 1em 0;
+            text-align: justify;
+        }
+        
+        a {
+            color: #4A69BD;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+        
+        a:hover {
+            color: #3a5699;
+            text-decoration: underline;
+        }
+        
+        blockquote {
+            margin: 1.5em 0;
+            padding-left: 1.5em;
+            border-left: 1px solid #DDD;
+            color: #555;
+            font-style: italic;
+        }
+        
+        code {
+            font-family: "SF Mono", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace;
+            background-color: rgba(0, 0, 0, 0.03);
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+        
+        pre {
+            background-color: rgba(0, 0, 0, 0.03);
+            padding: 1em;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 1.2em 0;
+        }
+        
+        pre code {
+            background: none;
+            padding: 0;
+        }
+        
+        ul, ol {
+            margin: 1em 0;
+            padding-left: 1.8em;
+        }
+        
+        li {
+            margin: 0.3em 0;
+        }
+        
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            margin: 1.5em 0;
+        }
+        
+        hr {
+            border: none;
+            border-top: 1px solid #DDD;
+            margin: 2em 0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5em 0;
+        }
+        
+        th, td {
+            padding: 0.6em 0.8em;
+            text-align: left;
+            border-bottom: 1px solid #E5E5E5;
+        }
+        
+        th {
+            font-weight: 600;
+            color: #2a2a2a;
+            border-bottom: 2px solid #DDD;
+        }
+        
+        strong {
+            font-weight: 700;
+            color: #2a2a2a;
+        }
+        
+        .empty-state {
+            text-align: center;
+            color: #888;
+            padding: 4em 0;
+            font-style: italic;
+        }
+        
+        .footer {
+            margin-top: 4em;
+            padding-top: 2em;
+            border-top: 1px solid #E5E5E5;
+            text-align: center;
+            color: #999;
+            font-size: 0.85em;
+        }
+
+        .file-info {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            font-size: 0.75em;
+            color: #999;
+            background: rgba(249, 248, 242, 0.9);
+            padding: 4px 8px;
+            border-radius: 4px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="drop-zone">
+        <div class="drop-icon">📄</div>
+        <div class="drop-message">拖拽 Markdown 文件到此处</div>
+        <div style="margin-top: 10px; font-size: 0.9em; color: #999;">
+            或使用命令行: paper <file.md>
+        </div>
+    </div>
+    
+    <div class="file-info" id="file-info" style="display: none;"></div>
+    <div id="content">
+        <div class="empty-state">
+            将 Markdown 文件拖拽到窗口，或通过命令行打开
+        </div>
+    </div>
+
+    <script>
+        const { invoke } = window.__TAURI__;
+        
+        let currentFile = null;
+        const dropZone = document.getElementById('drop-zone');
+        const content = document.getElementById('content');
+        const fileInfo = document.getElementById('file-info');
+        
+        // 渲染 Markdown
+        async function renderMarkdownFile(filePath) {
+            try {
+                const exists = await invoke('file_exists', { path: filePath });
+                if (!exists) {
+                    content.innerHTML = '<div class="empty-state">文件不存在</div>';
+                    return;
+                }
+                
+                const [markdownContent, info] = await Promise.all([
+                    invoke('read_file', { path: filePath }),
+                    invoke('get_file_info', { path: filePath })
+                ]);
+                
+                currentFile = filePath;
+                const html = await invoke('render_markdown', { content: markdownContent });
+                
+                content.innerHTML = html + '<div class="footer"><p>Rendered by Paper · ' + info.name + '</p></div>';
+                
+                fileInfo.textContent = info.name + ' (' + formatBytes(info.size) + ')';
+                fileInfo.style.display = 'block';
+                
+                // 隐藏拖放区
+                dropZone.classList.add('hidden');
+                
+                // 重新触发动画
+                content.style.animation = 'none';
+                setTimeout(() => {
+                    content.style.animation = 'inkSpread 0.6s ease-out forwards';
+                }, 10);
+                
+            } catch (err) {
+                console.error('渲染失败:', err);
+                content.innerHTML = '<div class="empty-state">渲染失败: ' + err + '</div>';
+            }
+        }
+        
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+        
+        // 拖拽事件
+        document.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('hidden');
+        });
+        
+        document.addEventListener('dragleave', (e) => {
+            if (e.target === dropZone) {
+                dropZone.classList.add('hidden');
+            }
+        });
+        
+        document.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dropZone.classList.add('hidden');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                if (file.name.endsWith('.md')) {
+                    // 注意：Tauri 中需要通过其他方式获取绝对路径
+                    // 这里简化处理
+                    console.log('Dropped file:', file.name);
+                }
+            }
+        });
+        
+        // 监听 Tauri 事件
+        if (window.__TAURI__) {
+            window.__TAURI__.event.listen('tauri://file-drop', (event) => {
+                if (event.payload && event.payload.length > 0) {
+                    renderMarkdownFile(event.payload[0]);
+                }
+            });
+        }
+        
+        // 检查是否有通过命令行传入的文件
+        // Tauri 启动时会传递参数
+        const args = new URLSearchParams(window.location.search);
+        const filePath = args.get('file');
+        if (filePath) {
+            renderMarkdownFile(filePath);
+        }
+        
+        // 键盘快捷键
+        document.addEventListener('keydown', (e) => {
+            // Ctrl/Cmd + R 刷新
+            if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+                e.preventDefault();
+                if (currentFile) {
+                    renderMarkdownFile(currentFile);
+                }
+            }
+            
+            // Ctrl/Cmd + O 打开文件
+            if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
+                e.preventDefault();
+                dropZone.classList.remove('hidden');
+            }
+            
+            // ESC 关闭拖放区
+            if (e.key === 'Escape') {
+                dropZone.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
