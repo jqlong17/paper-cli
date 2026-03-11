@@ -6,7 +6,6 @@
 use pulldown_cmark::{html, Options, Parser};
 use std::fs;
 use std::path::Path;
-use tauri::Manager;
 
 /// 将 Markdown 转换为 HTML
 #[tauri::command]
@@ -66,15 +65,6 @@ fn main() {
             file_exists,
             get_file_info
         ])
-        .setup(|app| {
-            // 处理文件拖放
-            app.listen_global("tauri://file-drop", |event| {
-                if let Some(payload) = event.payload() {
-                    println!("文件拖放: {}", payload);
-                }
-            });
-            Ok(())
-        })
         .run(tauri::generate_context!())
         .expect("运行 Tauri 应用失败");
 }
