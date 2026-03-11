@@ -544,7 +544,8 @@ async function startElectronMode() {
     console.log(`\x1b[36m║\x1b[0m 文件: \x1b[33m${fileName}\x1b[0m`);
     console.log(`\x1b[36m║\x1b[0m 模式: \x1b[35m独立窗口\x1b[0m`);
     console.log('\x1b[36m╠════════════════════════════════════════════════╣\x1b[0m');
-    console.log('\x1b[36m║\x1b[0m 按 Ctrl+Q 或关闭窗口退出');
+    console.log('\x1b[36m║\x1b[0m 关闭窗口即可退出');
+    console.log('\x1b[36m║\x1b[0m 可继续打开其他文件');
     console.log('\x1b[36m╚════════════════════════════════════════════════╝\x1b[0m\n');
     
     logger.log('ELECTRON_LAUNCH', { url, fileName });
@@ -608,10 +609,14 @@ app.on('activate', () => {
     
     logger.log('ELECTRON_PATH', { path: electronPath, platform: process.platform });
     
+    // 后台运行 Electron，不阻塞终端
     const electronProcess = spawn(electronPath, [electronScriptPath], {
       stdio: 'ignore',
-      detached: false
+      detached: true
     });
+    
+    // 分离进程，让父进程可以退出而不影响子进程
+    electronProcess.unref();
     
     electronProcess.on('error', (err) => {
       logger.logError(err);
@@ -628,23 +633,25 @@ app.on('activate', () => {
       });
     });
     
+    // 监听退出，在后台清理
     electronProcess.on('exit', (code) => {
-      logger.log('ELECTRON_EXIT', { exitCode: code });
+      logger.log('ELECTRON_EXIT', { exitCode: code, pid: electronProcess.pid });
       
       // 清理临时文件
       try {
         fs.unlinkSync(electronScriptPath);
       } catch (e) {}
       
-      console.log('\n\x1b[36m[paper] 正在收起纸张...\x1b[0m');
+      // 后台静默关闭服务器
       server.close(() => {
-        console.log('\x1b[32m[paper] 再会。\x1b[0m\n');
-        process.exit(0);
+        logger.log('SERVER_CLOSED', { pid: electronProcess.pid });
       });
     });
     
-    console.log('\x1b[32m[paper] 独立窗口已打开 ✓\x1b[0m\n');
-    logger.log('ELECTRON_SUCCESS', { pid: electronProcess.pid });
+    console.log('\x1b[32m[paper] 独立窗口已打开 ✓\x1b[0m');
+    console.log(`\x1b[36m[paper] 进程 PID: ${electronProcess.pid}\x1b[0m`);
+    console.log('\x1b[36m[paper] 终端已释放，可继续输入命令\x1b[0m\n');
+    logger.log('ELECTRON_SUCCESS', { pid: electronProcess.pid, detached: true });
   });
 }
 
