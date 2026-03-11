@@ -21,7 +21,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jqlong17/paper-cli"
+    "url": "https://github.com/jqlong17/paper-markdown"
   },
   "engines": {
     "node": ">=14.0.0"

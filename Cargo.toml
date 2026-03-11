@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["jqlong17"]
 description = "极速 Markdown 预览 CLI 工具 - Rust + WebView"
 license = "MIT"
-repository = "https://github.com/jqlong17/paper-cli"
+repository = "https://github.com/jqlong17/paper-markdown"
 keywords = ["markdown", "cli", "preview", "webview"]
 categories = ["command-line-utilities"]
 

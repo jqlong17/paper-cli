@@ -27,19 +27,19 @@
 
 **macOS / Linux:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jqlong17/paper-cli/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jqlong17/paper-markdown/main/install.sh | bash
 ```
 
 **Windows (PowerShell):**
 ```powershell
 # 下载最新版本 (Intel/AMD 处理器)
-Invoke-WebRequest -Uri "https://github.com/jqlong17/paper-cli/releases/latest/download/paper-markdown-x86_64-pc-windows-msvc.exe" -OutFile "$env:USERPROFILE\paper-markdown.exe"
+Invoke-WebRequest -Uri "https://github.com/jqlong17/paper-markdown/releases/latest/download/paper-markdown-x86_64-pc-windows-msvc.exe" -OutFile "$env:USERPROFILE\paper-markdown.exe"
 
 # 添加到 PATH (可选)
 $env:PATH += ";$env:USERPROFILE"
 
 # 或者手动下载
-# https://github.com/jqlong17/paper-cli/releases/latest
+# https://github.com/jqlong17/paper-markdown/releases/latest
 ```
 
 ### 方式二：Cargo 安装（需要 Rust）
@@ -51,8 +51,8 @@ cargo install paper-markdown
 ### 方式三：从源码构建
 
 ```bash
-git clone https://github.com/jqlong17/paper-cli.git
-cd paper-cli
+git clone https://github.com/jqlong17/paper-markdown.git
+cd paper-markdown
 cargo build --release
 ```
 

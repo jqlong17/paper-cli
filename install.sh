@@ -5,7 +5,7 @@
 
 set -e
 
-REPO="jqlong17/paper-cli"
+REPO="jqlong17/paper-markdown"
 VERSION="v1.0.0"
 INSTALL_DIR="/usr/local/bin"
 
