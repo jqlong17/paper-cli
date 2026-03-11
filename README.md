@@ -4,29 +4,23 @@
 > 
 > *冷静、有人文感的数字宣纸*
 
-[![npm version](https://badge.fury.io/js/paper-cli.svg)](https://www.npmjs.com/package/paper-cli)
+[![GitHub stars](https://img.shields.io/github/stars/jqlong17/paper-cli?style=social)](https://github.com/jqlong17/paper-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
 
 ## 安装
 
-### 方式一：通过 npm 全局安装（推荐）
+### 方式一：从 GitHub 直接安装（推荐）
 
 ```bash
-npm install -g paper-cli
+npm install -g jqlong17/paper-cli
 
 # 使用
 paper demo.md
 ```
 
-### 方式二：使用 npx（无需安装）
-
-```bash
-npx paper-cli demo.md
-```
-
-### 方式三：从源码安装
+### 方式二：从源码安装
 
 ```bash
 git clone https://github.com/jqlong17/paper-cli.git
