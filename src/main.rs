@@ -103,7 +103,7 @@ fn window_mode(file_path: &PathBuf, verbose: bool) {
         event_loop::{ControlFlow, EventLoop},
         window::WindowBuilder,
     };
-    use wry::webview::WebViewBuilder;
+    use wry::WebViewBuilder;
 
     // 初始渲染
     let html = match render_markdown(file_path) {
@@ -146,11 +146,9 @@ fn window_mode(file_path: &PathBuf, verbose: bool) {
         .build(&event_loop)
         .expect("创建窗口失败");
 
-    let _webview = WebViewBuilder::new(window)
-        .expect("创建 WebViewBuilder 失败")
+    let _webview = WebViewBuilder::new()
         .with_url(&url)
-        .expect("设置 URL 失败")
-        .build()
+        .build(&window)
         .expect("创建 WebView 失败");
 
     event_loop.run(move |event, _, control_flow| {
