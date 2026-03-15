@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{CommandFactory, Parser, ValueHint};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -17,7 +17,7 @@ use server::start_server;
 )]
 struct Cli {
     /// Markdown 文件路径
-    #[arg(value_name = "FILE")]
+    #[arg(value_name = "FILE", value_hint = ValueHint::FilePath)]
     file: Option<PathBuf>,
 
     /// 显示日志输出
@@ -27,10 +27,20 @@ struct Cli {
     /// 内部使用：启动窗口模式
     #[arg(long, hide = true)]
     window: bool,
+
+    /// 生成 shell 补全脚本
+    #[arg(long, hide = true, value_enum)]
+    generate_completion: Option<clap_complete::Shell>,
 }
 
 fn main() {
     let cli = Cli::parse();
+
+    if let Some(shell) = cli.generate_completion {
+        generate_completion(shell);
+        return;
+    }
+
     let verbose = cli.log;
 
     // 如果没有提供文件，显示帮助
@@ -97,6 +107,38 @@ fn main() {
     }
 }
 
+fn generate_completion(shell: clap_complete::Shell) {
+    if matches!(shell, clap_complete::Shell::Zsh) {
+        let script = r#"#compdef paper
+
+_paper() {
+  local state
+
+  _arguments -s -S \
+    '--help[显示帮助信息]' \
+    '--version[显示版本信息]' \
+    '(-l --log)'{-l,--log}'[显示日志输出]' \
+    '*:markdown file:->mdfiles'
+
+  case $state in
+    mdfiles)
+      local -a md_files
+      md_files=( *(.N) *(/N) )
+      compadd -M 'm:{a-zA-Z}={A-Za-z}' -f -- *.md(N) *.markdown(N) *.MD(N) *.MARKDOWN(N)
+      ;;
+  esac
+}
+
+_paper "$@"
+"#;
+        print!("{}", script);
+        return;
+    }
+
+    let mut cmd = Cli::command();
+    clap_complete::generate(shell, &mut cmd, "paper", &mut std::io::stdout());
+}
+
 fn window_mode(file_path: &PathBuf, verbose: bool) {
     use tao::{
         event::{Event, WindowEvent},
@@ -118,8 +160,14 @@ fn window_mode(file_path: &PathBuf, verbose: bool) {
 
     let content = Arc::new(Mutex::new(html));
 
+    // 获取文件所在目录作为静态资源根目录
+    let base_path = file_path
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| PathBuf::from("."));
+
     // 启动 HTTP 服务器
-    let port = match start_server(content.clone()) {
+    let port = match start_server(content.clone(), base_path) {
         Ok(p) => p,
         Err(e) => {
             if verbose {

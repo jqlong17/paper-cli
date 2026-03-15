@@ -74,6 +74,20 @@ paper-markdown --help
 paper-markdown --version
 ```
 
+### Tab 自动补全（zsh）
+
+让 `paper` 在输入参数时按 `Tab` 自动补全文件名（仅补全 `.md` / `.markdown`）：
+
+```bash
+mkdir -p ~/.zsh/completions
+paper --generate-completion zsh > ~/.zsh/completions/_paper
+grep -q 'fpath=(~/.zsh/completions $fpath)' ~/.zshrc || echo 'fpath=(~/.zsh/completions $fpath)' >> ~/.zshrc
+grep -q 'autoload -Uz compinit && compinit' ~/.zshrc || echo 'autoload -Uz compinit && compinit' >> ~/.zshrc
+source ~/.zshrc
+```
+
+然后输入：`paper <Tab>` 或 `paper xx<Tab>` 即可补全。
+
 ### 多窗口支持
 
 可以同时打开多个文件，每个窗口独立运行：
